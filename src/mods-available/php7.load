@@ -1,0 +1,2 @@
+LoadModule php7_module modules/libphp7.so
+
