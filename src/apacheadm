@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 
+VERSION="1.1"
+APACHE_CONFIG_PATH="/etc/httpd/conf"
+
 if [ ${EUID} -ne 0 ]; then
   printf "apacheadm must be run as root!\n"
+  exit 1
 fi
 
-APACHE_CONFIG_PATH="/etc/httpd/conf"
 
 help() {
   printf "Usage:\n"
@@ -14,21 +17,31 @@ help() {
   printf "apacheadm disable-site [site]        Disable a site.\n"
 }
 
+version() {
+  printf "Version ${VERSION}\n"
+}
+
 enable_module() {
-  if [ -f ${APACHE_CONFIG_PATH}/mods-available/${1}.load ]; then
-    if [ ! -e ${APACHE_CONFIG_PATH}/mods-enabled/${1}.load ]; then
-      ln -s ${APACHE_CONFIG_PATH}/mods-available/${1}.* \
-        ${APACHE_CONFIG_PATH}/mods-enabled/
-      printf "Module ${1} enabled.\n"
-    else
-      printf "Module ${1} already enabled.\n"
-    fi
-  else
+  if [ ! -f ${APACHE_CONFIG_PATH}/mods-available/${1}.load ]; then
     printf "Module ${1} not available.\n"
+    exit 1
+  fi
+
+  if [ ! -e ${APACHE_CONFIG_PATH}/mods-enabled/${1}.load ]; then
+    ln -s ${APACHE_CONFIG_PATH}/mods-available/${1}.* \
+      ${APACHE_CONFIG_PATH}/mods-enabled/
+    printf "Module ${1} enabled.\n"
+  else
+    printf "Module ${1} already enabled.\n"
   fi
 }
 
 disable_module() {
+  if [ ! -f ${APACHE_CONFIG_PATH}/mods-available/${1}.load ]; then
+    printf "Module ${1} not available.\n"
+    exit 1
+  fi
+
   if [ -e ${APACHE_CONFIG_PATH}/mods-enabled/${1}.load ]; then
     rm -f ${APACHE_CONFIG_PATH}/mods-enabled/${1}.{load,conf}
     printf "Module ${1} disabled.\n"
@@ -39,19 +52,25 @@ disable_module() {
 
 enable_site() {
   if [ -f ${APACHE_CONFIG_PATH}/sites-available/${1}.conf ]; then
-    if [ ! -e ${APACHE_CONFIG_PATH}/sites-enabled/${1}.load ]; then
-      ln -s ${APACHE_CONFIG_PATH}/sites-available/${1}.conf \
-        ${APACHE_CONFIG_PATH}/sites-enabled/
-      printf "Site ${1} enabled.\n"
-    else
-      printf "Site ${1} already enabled.\n"
-    fi
-  else
     printf "Site ${1} not available.\n"
+    exit 1
+  fi
+
+  if [ ! -e ${APACHE_CONFIG_PATH}/sites-enabled/${1}.load ]; then
+    ln -s ${APACHE_CONFIG_PATH}/sites-available/${1}.conf \
+      ${APACHE_CONFIG_PATH}/sites-enabled/
+    printf "Site ${1} enabled.\n"
+  else
+    printf "Site ${1} already enabled.\n"
   fi
 }
 
 disable_site() {
+  if [ -f ${APACHE_CONFIG_PATH}/sites-available/${1}.conf ]; then
+    printf "Site ${1} not available.\n"
+    exit 1
+  fi
+
   if [ -e ${APACHE_CONFIG_PATH}/sites-enabled/${1}.conf ]; then
     rm -f ${APACHE_CONFIG_PATH}/sites-enabled/${1}.conf
     printf "Site ${1} disabled.\n"
@@ -62,9 +81,11 @@ disable_site() {
 
 case ${1} in
   "--help")         help;;
+  "--version")      version;;
   "enable-module")  enable_module ${2};;
   "disable-module") disable_module ${2};;
   "enable-site")    enable_site ${2};;
   "disable-site")   disable_site ${2};;
+  *)                printf "Unknown option ${1}\n"; exit 1;;
 esac
 
