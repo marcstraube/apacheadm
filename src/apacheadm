@@ -1,34 +1,67 @@
 #!/usr/bin/env bash
 
+VERSION="1.1"
+APACHE_CONFIG_PATH="/etc/httpd/conf"
+
 if [ ${EUID} -ne 0 ]; then
   printf "apacheadm must be run as root!\n"
+  exit 1
 fi
 
-APACHE_CONFIG_PATH="/etc/httpd/conf"
 
 help() {
   printf "Usage:\n"
   printf "apacheadm enable-module [module]     Enable a module.\n"
   printf "apacheadm disable-module [module]    Disable a module.\n"
+  printf "apacheadm list-modules               List available modules.\n"
   printf "apacheadm enable-site [site]         Enable a site.\n"
   printf "apacheadm disable-site [site]        Disable a site.\n"
+  printf "apacheadm list-sites                 List available sites.\n"
+}
+
+version() {
+  printf "Version ${VERSION}\n"
 }
 
 enable_module() {
-  if [ -f ${APACHE_CONFIG_PATH}/mods-available/${1}.load ]; then
-    if [ ! -e ${APACHE_CONFIG_PATH}/mods-enabled/${1}.load ]; then
-      ln -s ${APACHE_CONFIG_PATH}/mods-available/${1}.* \
-        ${APACHE_CONFIG_PATH}/mods-enabled/
-      printf "Module ${1} enabled.\n"
-    else
-      printf "Module ${1} already enabled.\n"
-    fi
-  else
+  if [ ! -f ${APACHE_CONFIG_PATH}/mods-available/${1}.load ]; then
     printf "Module ${1} not available.\n"
+    exit 1
+  fi
+
+  if [ -f ${APACHE_CONFIG_PATH}/mods-available/${1}.conf ]; then
+    local depends=`grep "^# Depends:" ${APACHE_CONFIG_PATH}/mods-available/${1}.conf | cut -f2 -d:`
+    if [ ! -z ${depends} ]; then
+      for i in ${depends}; do
+        printf "Enabling dependency: "
+        enable_module ${i}
+      done
+    fi
+
+    local conflicts=`grep "^# Conflicts:" ${APACHE_CONFIG_PATH}/mods-available/${1}.conf | cut -f2 -d:`
+    if [ ! -z ${conflicts} ]; then
+      for i in ${conflicts}; do
+        printf "Disabling conflicting module: "
+        disable_module ${i}
+      done
+    fi
+  fi
+
+  if [ ! -e ${APACHE_CONFIG_PATH}/mods-enabled/${1}.load ]; then
+    ln -s ${APACHE_CONFIG_PATH}/mods-available/${1}.* \
+      ${APACHE_CONFIG_PATH}/mods-enabled/
+    printf "Module ${1} enabled.\n"
+  else
+    printf "Module ${1} already enabled.\n"
   fi
 }
 
 disable_module() {
+  if [ ! -f ${APACHE_CONFIG_PATH}/mods-available/${1}.load ]; then
+    printf "Module ${1} not available.\n"
+    exit 1
+  fi
+
   if [ -e ${APACHE_CONFIG_PATH}/mods-enabled/${1}.load ]; then
     rm -f ${APACHE_CONFIG_PATH}/mods-enabled/${1}.{load,conf}
     printf "Module ${1} disabled.\n"
@@ -37,21 +70,37 @@ disable_module() {
   fi
 }
 
+list_modules() {
+  local modules=`ls ${APACHE_CONFIG_PATH}/mods-available/*.load | cut -d/ -f6`
+  local list=""
+  for i in ${modules}; do
+    list+=" ${i/\.load/}"
+  done
+  
+  printf "Available modules:${list}\n"
+}
+
 enable_site() {
   if [ -f ${APACHE_CONFIG_PATH}/sites-available/${1}.conf ]; then
-    if [ ! -e ${APACHE_CONFIG_PATH}/sites-enabled/${1}.load ]; then
-      ln -s ${APACHE_CONFIG_PATH}/sites-available/${1}.conf \
-        ${APACHE_CONFIG_PATH}/sites-enabled/
-      printf "Site ${1} enabled.\n"
-    else
-      printf "Site ${1} already enabled.\n"
-    fi
-  else
     printf "Site ${1} not available.\n"
+    exit 1
+  fi
+
+  if [ ! -e ${APACHE_CONFIG_PATH}/sites-enabled/${1}.load ]; then
+    ln -s ${APACHE_CONFIG_PATH}/sites-available/${1}.conf \
+      ${APACHE_CONFIG_PATH}/sites-enabled/
+    printf "Site ${1} enabled.\n"
+  else
+    printf "Site ${1} already enabled.\n"
   fi
 }
 
 disable_site() {
+  if [ -f ${APACHE_CONFIG_PATH}/sites-available/${1}.conf ]; then
+    printf "Site ${1} not available.\n"
+    exit 1
+  fi
+
   if [ -e ${APACHE_CONFIG_PATH}/sites-enabled/${1}.conf ]; then
     rm -f ${APACHE_CONFIG_PATH}/sites-enabled/${1}.conf
     printf "Site ${1} disabled.\n"
@@ -60,11 +109,25 @@ disable_site() {
   fi
 }
 
+list_sites() {
+  local sites=`ls ${APACHE_CONFIG_PATH}/sites-available/*.conf | cut -d/ -f6`
+  local list=""
+  for i in ${sites}; do
+    list+=" ${i/\.conf/}"
+  done
+  
+  printf "Available sites:${list}\n"
+}
+
 case ${1} in
   "--help")         help;;
+  "--version")      version;;
   "enable-module")  enable_module ${2};;
   "disable-module") disable_module ${2};;
+  "list-modules")   list_modules;;
   "enable-site")    enable_site ${2};;
   "disable-site")   disable_site ${2};;
+  "list-sites")     list_sites;;
+  *)                printf "Unknown option ${1}\n"; exit 1;;
 esac
 
