@@ -13,8 +13,10 @@ help() {
   printf "Usage:\n"
   printf "apacheadm enable-module [module]     Enable a module.\n"
   printf "apacheadm disable-module [module]    Disable a module.\n"
+  printf "apacheadm list-modules               List available modules.\n"
   printf "apacheadm enable-site [site]         Enable a site.\n"
   printf "apacheadm disable-site [site]        Disable a site.\n"
+  printf "apacheadm list-sites                 List available sites.\n"
 }
 
 version() {
@@ -68,6 +70,16 @@ disable_module() {
   fi
 }
 
+list_modules() {
+  local modules=`ls ${APACHE_CONFIG_PATH}/mods-available/*.load | cut -d/ -f6`
+  local list=""
+  for i in ${modules}; do
+    list+=" ${i/\.load/}"
+  done
+  
+  printf "Available modules:${list}\n"
+}
+
 enable_site() {
   if [ -f ${APACHE_CONFIG_PATH}/sites-available/${1}.conf ]; then
     printf "Site ${1} not available.\n"
@@ -97,13 +109,25 @@ disable_site() {
   fi
 }
 
+list_sites() {
+  local sites=`ls ${APACHE_CONFIG_PATH}/sites-available/*.conf | cut -d/ -f6`
+  local list=""
+  for i in ${sites}; do
+    list+=" ${i/\.conf/}"
+  done
+  
+  printf "Available sites:${list}\n"
+}
+
 case ${1} in
   "--help")         help;;
   "--version")      version;;
   "enable-module")  enable_module ${2};;
   "disable-module") disable_module ${2};;
+  "list-modules")   list_modules;;
   "enable-site")    enable_site ${2};;
   "disable-site")   disable_site ${2};;
+  "list-sites")     list_sites;;
   *)                printf "Unknown option ${1}\n"; exit 1;;
 esac
 
