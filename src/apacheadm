@@ -27,6 +27,24 @@ enable_module() {
     exit 1
   fi
 
+  if [ -f ${APACHE_CONFIG_PATH}/mods-available/${1}.conf ]; then
+    local depends=`grep "^# Depends:" ${APACHE_CONFIG_PATH}/mods-available/${1}.conf | cut -f2 -d:`
+    if [ ! -z ${depends} ]; then
+      for i in ${depends}; do
+        printf "Enabling dependency: "
+        enable_module ${i}
+      done
+    fi
+
+    local conflicts=`grep "^# Conflicts:" ${APACHE_CONFIG_PATH}/mods-available/${1}.conf | cut -f2 -d:`
+    if [ ! -z ${conflicts} ]; then
+      for i in ${conflicts}; do
+        printf "Disabling conflicting module: "
+        disable_module ${i}
+      done
+    fi
+  fi
+
   if [ ! -e ${APACHE_CONFIG_PATH}/mods-enabled/${1}.load ]; then
     ln -s ${APACHE_CONFIG_PATH}/mods-available/${1}.* \
       ${APACHE_CONFIG_PATH}/mods-enabled/
