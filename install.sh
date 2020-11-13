@@ -2,6 +2,7 @@
 
 if [ ${EUID} -ne 0 ]; then
   printf "Install script must be run as root!\n"
+  exit 1
 fi
 
 DESTDIR=""
@@ -25,10 +26,18 @@ install -Dm0644 src/mods-available/*.{conf,load} ${DESTDIR}${CONFDIR}/conf/mods-
 install -Dm0644 src/sites-available/*.conf ${DESTDIR}${CONFDIR}/conf/sites-available/
 
 default_modules=( mpm_event log_config mime dir authz_core unixd headers )
+
 for module in ${default_modules[@]}; do
-  ln -s ../mods-available/${module}.load ${DESTDIR}${CONFDIR}/conf/mods-enabled/${module}.load
+  prefix="10-"
+
+  if [ ${module} == "unixd" ]; then
+    prefix="00-"
+  fi
+
+  ln -s ../mods-available/${module}.load ${DESTDIR}${CONFDIR}/conf/mods-enabled/${prefix}${module}.load
+
   if [ -e ${DESTDIR}${CONFDIR}/conf/mods-available/${module}.conf ]; then
-    ln -s ../mods-available/${module}.conf ${DESTDIR}${CONFDIR}/conf/mods-enabled/${module}.conf
+    ln -s ../mods-available/${module}.conf ${DESTDIR}${CONFDIR}/conf/mods-enabled/${prefix}${module}.conf
   fi
 done
 

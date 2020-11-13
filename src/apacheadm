@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION="1.1"
+VERSION="1.2"
 APACHE_CONFIG_PATH="/etc/httpd/conf"
 
 if [ ${EUID} -ne 0 ]; then
@@ -23,97 +23,124 @@ version() {
   printf "Version ${VERSION}\n"
 }
 
+get_module_prefix() {
+  local prefix="10-"
+
+  if [ ${module} == "unixd" ]; then
+    prefix="00-"
+  fi
+
+  printf "${prefix}"
+}
+
 enable_module() {
-  if [ ! -f ${APACHE_CONFIG_PATH}/mods-available/${1}.load ]; then
-    printf "Module ${1} not available.\n"
+  local module=${1}
+  local prefix=$(get_module_prefix)
+
+  if [ ! -f ${APACHE_CONFIG_PATH}/mods-available/${module}.load ]; then
+    printf "Module ${module} not available.\n"
     exit 1
   fi
 
-  if [ -f ${APACHE_CONFIG_PATH}/mods-available/${1}.conf ]; then
-    local depends=`grep "^# Depends:" ${APACHE_CONFIG_PATH}/mods-available/${1}.conf | cut -f2 -d:`
-    if [ ! -z ${depends} ]; then
-      for i in ${depends}; do
-        printf "Enabling dependency: "
-        enable_module ${i}
-      done
-    fi
+  local dependencies=`grep "^# Depends:" ${APACHE_CONFIG_PATH}/mods-available/${module}.load | cut -f2 -d:`
 
-    local conflicts=`grep "^# Conflicts:" ${APACHE_CONFIG_PATH}/mods-available/${1}.conf | cut -f2 -d:`
-    if [ ! -z ${conflicts} ]; then
-      for i in ${conflicts}; do
-        printf "Disabling conflicting module: "
-        disable_module ${i}
-      done
-    fi
+  if [ ! -z ${dependencies} ]; then
+    for dependency in ${dependencies}; do
+      printf "Checking dependency for ${module}: "
+      enable_module ${dependency}
+    done
   fi
 
-  if [ ! -e ${APACHE_CONFIG_PATH}/mods-enabled/${1}.load ]; then
-    ln -s ${APACHE_CONFIG_PATH}/mods-available/${1}.* \
-      ${APACHE_CONFIG_PATH}/mods-enabled/
-    printf "Module ${1} enabled.\n"
-  else
-    printf "Module ${1} already enabled.\n"
+  local conflicts=`grep "^# Conflicts:" ${APACHE_CONFIG_PATH}/mods-available/${module}.load | cut -f2 -d:`
+
+  if [ ! -z "${conflicts}" ]; then
+    for conflict in ${conflicts}; do
+      printf "Conflict detected: you first have to disable ${conflict} before you can enable ${module}\n"
+      exit 1
+    done
   fi
+
+  if [ -e ${APACHE_CONFIG_PATH}/mods-enabled/${prefix}${module}.load ]; then
+    printf "Module ${module} already enabled.\n"
+    return 0
+  fi
+
+  ln -s ../mods-available/${module}.load \
+    ${APACHE_CONFIG_PATH}/mods-enabled/${prefix}${module}.load
+
+  if [ -f ${APACHE_CONFIG_PATH}/mods-available/${module}.conf ]; then
+    ln -s ../mods-available/${module}.conf \
+      ${APACHE_CONFIG_PATH}/mods-enabled/${prefix}${module}.conf
+  fi
+
+  printf "Module ${module} enabled.\n"
 }
 
 disable_module() {
-  if [ ! -f ${APACHE_CONFIG_PATH}/mods-available/${1}.load ]; then
-    printf "Module ${1} not available.\n"
+  local module=${1}
+  local prefix=$(get_module_prefix)
+
+  if [ ! -f ${APACHE_CONFIG_PATH}/mods-available/${module}.load ]; then
+    printf "Module ${module} not available.\n"
     exit 1
   fi
 
-  if [ -e ${APACHE_CONFIG_PATH}/mods-enabled/${1}.load ]; then
-    rm -f ${APACHE_CONFIG_PATH}/mods-enabled/${1}.{load,conf}
-    printf "Module ${1} disabled.\n"
+  if [ -e ${APACHE_CONFIG_PATH}/mods-enabled/${prefix}${module}.load ]; then
+    rm -f ${APACHE_CONFIG_PATH}/mods-enabled/${prefix}${module}.{load,conf}
+    printf "Module ${module} disabled.\n"
   else
-    printf "Module ${1} not enabled.\n"
+    printf "Module ${module} not enabled.\n"
   fi
 }
 
 list_modules() {
-  local modules=`ls ${APACHE_CONFIG_PATH}/mods-available/*.load | cut -d/ -f6`
+  local modules=`ls ${APACHE_CONFIG_PATH}/mods-available/*.load | rev | cut -d/ -f1 | rev`
   local list=""
-  for i in ${modules}; do
-    list+=" ${i/\.load/}"
+
+  for module in ${modules}; do
+    list+=" ${module/\.load/}"
   done
   
   printf "Available modules:${list}\n"
 }
 
 enable_site() {
-  if [ -f ${APACHE_CONFIG_PATH}/sites-available/${1}.conf ]; then
-    printf "Site ${1} not available.\n"
+  local site=${1}
+
+  if [ -f ${APACHE_CONFIG_PATH}/sites-available/${site}.conf ]; then
+    printf "Site ${site} not available.\n"
     exit 1
   fi
 
-  if [ ! -e ${APACHE_CONFIG_PATH}/sites-enabled/${1}.load ]; then
-    ln -s ${APACHE_CONFIG_PATH}/sites-available/${1}.conf \
-      ${APACHE_CONFIG_PATH}/sites-enabled/
-    printf "Site ${1} enabled.\n"
+  if [ ! -e ${APACHE_CONFIG_PATH}/sites-enabled/${site}.load ]; then
+    ln -s ../sites-available/${site}.conf ${APACHE_CONFIG_PATH}/sites-enabled/
+    printf "Site ${site} enabled.\n"
   else
-    printf "Site ${1} already enabled.\n"
+    printf "Site ${site} already enabled.\n"
   fi
 }
 
 disable_site() {
-  if [ -f ${APACHE_CONFIG_PATH}/sites-available/${1}.conf ]; then
-    printf "Site ${1} not available.\n"
+  local site=${1}
+
+  if [ -f ${APACHE_CONFIG_PATH}/sites-available/${site}.conf ]; then
+    printf "Site ${site} not available.\n"
     exit 1
   fi
 
-  if [ -e ${APACHE_CONFIG_PATH}/sites-enabled/${1}.conf ]; then
-    rm -f ${APACHE_CONFIG_PATH}/sites-enabled/${1}.conf
-    printf "Site ${1} disabled.\n"
+  if [ -e ${APACHE_CONFIG_PATH}/sites-enabled/${site}.conf ]; then
+    rm -f ${APACHE_CONFIG_PATH}/sites-enabled/${site}.conf
+    printf "Site ${site} disabled.\n"
   else
-    printf "Site ${1} not enabled.\n"
+    printf "Site ${site} not enabled.\n"
   fi
 }
 
 list_sites() {
-  local sites=`ls ${APACHE_CONFIG_PATH}/sites-available/*.conf | cut -d/ -f6`
+  local sites=`ls ${APACHE_CONFIG_PATH}/sites-available/*.conf | rev | cut -d/ -f1 | rev`
   local list=""
-  for i in ${sites}; do
-    list+=" ${i/\.conf/}"
+  for site in ${sites}; do
+    list+=" ${site/\.conf/}"
   done
   
   printf "Available sites:${list}\n"
