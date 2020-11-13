@@ -1,1 +1,3 @@
+# Conflicts: mpm_event mpm_worker
+
 LoadModule mpm_prefork_module modules/mod_mpm_prefork.so
