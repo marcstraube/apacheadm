@@ -33,6 +33,22 @@ get_module_prefix() {
   printf "${prefix}"
 }
 
+edit_config() {
+  local config=${1}
+
+  if [ ! -f ${APACHE_CONFIG_PATH}/conf-available/${config}.conf ]; then
+    printf "Configuration ${config} not available.\n"
+    printf "Do you want to create the config file? [Y/n]: "
+    read input
+
+    if [ ${input} == "n" ]; then
+        exit 0
+    fi
+  fi
+
+  ${EDITOR:-vi} ${APACHE_CONFIG_PATH}/conf-available/${config}.conf
+}
+
 enable_config() {
   local config=${1}
 
@@ -146,6 +162,22 @@ list_modules() {
   printf "Available modules:${list}\n"
 }
 
+edit_site() {
+  local site=${1}
+
+  if [ ! -f ${APACHE_CONFIG_PATH}/sites-available/${site}.conf ]; then
+    printf "Site ${site} not available.\n"
+    printf "Do you want to create the config file? [Y/n]: "
+    read input
+
+    if [ ${input} == "n" ]; then
+        exit 0
+    fi
+  fi
+
+  ${EDITOR:-vi} ${APACHE_CONFIG_PATH}/sites-available/${site}.conf
+}
+
 enable_site() {
   local site=${1}
 
@@ -191,12 +223,14 @@ list_sites() {
 case ${1} in
   "--help")         help;;
   "--version")      version;;
+  "edit-config")    edit_config ${2};;
   "enable-config")  enable_config ${2};;
   "disable-config") disable_config ${2};;
   "list-configs")   list_configs;;
   "enable-module")  enable_module ${2};;
   "disable-module") disable_module ${2};;
   "list-modules")   list_modules;;
+  "edit-site")      edit_site ${2};;
   "enable-site")    enable_site ${2};;
   "disable-site")   disable_site ${2};;
   "list-sites")     list_sites;;
