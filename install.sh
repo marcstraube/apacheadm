@@ -15,6 +15,8 @@ while getopts d:c: option; do
   esac
 done
 
+install -d ${DESTDIR}${CONFDIR}/conf/conf-available/
+install -d ${DESTDIR}${CONFDIR}/conf/conf-enabled/
 install -d ${DESTDIR}${CONFDIR}/conf/mods-available/
 install -d ${DESTDIR}${CONFDIR}/conf/mods-enabled/
 install -d ${DESTDIR}${CONFDIR}/conf/sites-available/

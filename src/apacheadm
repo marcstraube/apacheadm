@@ -33,6 +33,48 @@ get_module_prefix() {
   printf "${prefix}"
 }
 
+enable_config() {
+  local config=${1}
+
+  if [ ! -f ${APACHE_CONFIG_PATH}/conf-available/${config}.conf ]; then
+    printf "Configuration ${config} not available.\n"
+    exit 1
+  fi
+
+  if [ ! -e ${APACHE_CONFIG_PATH}/conf-enabled/${config}.load ]; then
+    ln -s ../conf-available/${config}.conf ${APACHE_CONFIG_PATH}/conf-enabled/
+    printf "Configuration ${config} enabled.\n"
+  else
+    printf "Configuration ${config} already enabled.\n"
+  fi
+}
+
+disable_config() {
+  local config=${1}
+
+  if [ ! -f ${APACHE_CONFIG_PATH}/conf-available/${config}.conf ]; then
+    printf "Configuration ${config} not available.\n"
+    exit 1
+  fi
+
+  if [ -e ${APACHE_CONFIG_PATH}/conf-enabled/${config}.conf ]; then
+    rm -f ${APACHE_CONFIG_PATH}/conf-enabled/${config}.conf
+    printf "Configuration ${config} disabled.\n"
+  else
+    printf "Configuration ${config} not enabled.\n"
+  fi
+}
+
+list_configs() {
+  local configs=`ls ${APACHE_CONFIG_PATH}/conf-available/*.conf | rev | cut -d/ -f1 | rev`
+  local list=""
+  for config in ${configs}; do
+    list+=" ${config/\.conf/}"
+  done
+  
+  printf "Available configurations:${list}\n"
+}
+
 enable_module() {
   local module=${1}
   local prefix=$(get_module_prefix)
@@ -149,6 +191,9 @@ list_sites() {
 case ${1} in
   "--help")         help;;
   "--version")      version;;
+  "enable-config")  enable_config ${2};;
+  "disable-config") disable_config ${2};;
+  "list-configs")   list_configs;;
   "enable-module")  enable_module ${2};;
   "disable-module") disable_module ${2};;
   "list-modules")   list_modules;;
